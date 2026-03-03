@@ -1,17 +1,17 @@
 # PDF Merger Tool
 
-A simple Python script to merge two or more PDF files into a single PDF file.
+A simple Python script to merge PDF files and images (PNG/JPG) into a single PDF file.
 
 ## Installation
 
 1. Install Python 3.6 or higher (if not already installed)
-2. Install the required library:
+2. Install the required libraries:
    ```bash
    pip install -r requirements.txt
    ```
    or
    ```bash
-   pip install pypdf
+   pip install pypdf Pillow
    ```
 
 ## Usage
@@ -22,17 +22,18 @@ Run the script:
 python merge_pdfs.py
 ```
 
-When prompted, enter the PDF file paths separated by commas:
+When prompted, enter the file paths (PDF, PNG, or JPG) separated by commas:
 
 ```
-Enter PDF file paths (comma-separated): file1.pdf, file2.pdf, file3.pdf
+Enter file paths (PDF/PNG/JPG, comma-separated): file1.pdf, image1.png, photo.jpg
 ```
 
 You can use:
 
-- Relative paths: `document1.pdf, document2.pdf`
-- Absolute paths: `C:\Files\doc1.pdf, C:\Files\doc2.pdf`
-- Mixed paths with quotes: `"C:\My Files\doc1.pdf", document2.pdf`
+- Relative paths: `document1.pdf, image.png`
+- Absolute paths: `C:\Files\doc1.pdf, C:\Images\photo.jpg`
+- Mixed formats: `document.pdf, image1.png, image2.jpg`
+- Paths with quotes: `"C:\My Files\doc1.pdf", photo.png`
 
 ## Output
 
@@ -40,7 +41,9 @@ The merged PDF will be saved as `merged.pdf` in the same directory as the first 
 
 ## Features
 
-- Merges 2 or more PDF files
+- Merges PDF files and images (PNG/JPG/JPEG) into a single PDF
+- Automatically converts images to PDF pages
+- Handles transparent images (converts to white background)
 - Validates all input files before merging
 - Warns if output file already exists
 - Shows progress during merging
@@ -53,14 +56,15 @@ The merged PDF will be saved as `merged.pdf` in the same directory as the first 
 PDF Merger Tool
 ==============================================================
 
-Enter PDF file paths (comma-separated): doc1.pdf, doc2.pdf
+Enter file paths (PDF/PNG/JPG, comma-separated): doc1.pdf, image.png, photo.jpg
 
-Merging 2 PDF files...
-  [1/2] Adding: doc1.pdf
-  [2/2] Adding: doc2.pdf
+Merging 3 files...
+  [1/3] Adding PDF: doc1.pdf
+  [2/3] Converting image to PDF: image.png
+  [3/3] Converting image to PDF: photo.jpg
 
 Saving merged PDF to: C:\Files\merged.pdf
-✓ Successfully merged PDFs!
+✓ Successfully merged files into PDF!
 
 Output file: C:\Files\merged.pdf
 ==============================================================
