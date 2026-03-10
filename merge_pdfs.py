@@ -2,6 +2,7 @@
 """
 PDF Merger Tool
 Merges two or more PDF files and images (PNG/JPG) into a single PDF file.
+Supports page range selection for PDFs.
 """
 
 import os
@@ -60,32 +61,40 @@ def image_to_pdf(image_path):
         raise Exception(f"Failed to convert image to PDF: {e}")
 
 
-def merge_pdfs(file_paths, output_path):
+def merge_pdfs(file_items, output_path):
     """
     Merge multiple PDF files and images into one PDF.
     
     Args:
-        file_paths: List of PDF/image file paths to merge
+        file_items: List of tuples (file_path, start_page, end_page)
+                   start_page and end_page can be None for full document
         output_path: Path where the merged PDF will be saved
     """
     merger = PdfMerger()
     temp_files = []  # Track temporary PDF files created from images
     
-    print(f"\nMerging {len(file_paths)} files...")
+    print(f"\nMerging {len(file_items)} files...")
     
-    for i, file_path in enumerate(file_paths, 1):
+    for i, (file_path, start_page, end_page) in enumerate(file_items, 1):
         try:
             file_ext = os.path.splitext(file_path)[1].lower()
             
             # Check if it's an image file
             if file_ext in ['.png', '.jpg', '.jpeg']:
-                print(f"  [{i}/{len(file_paths)}] Converting image to PDF: {os.path.basename(file_path)}")
+                print(f"  [{i}/{len(file_items)}] Converting image to PDF: {os.path.basename(file_path)}")
                 temp_pdf = image_to_pdf(file_path)
                 temp_files.append(temp_pdf)
                 merger.append(temp_pdf)
             else:
-                print(f"  [{i}/{len(file_paths)}] Adding PDF: {os.path.basename(file_path)}")
-                merger.append(file_path)
+                # It's a PDF file
+                if start_page is not None and end_page is not None:
+                    # Convert to 0-indexed for pypdf (it uses 0-based indexing)
+                    # But we need to be careful: pages parameter expects (start, end) where end is exclusive
+                    print(f"  [{i}/{len(file_items)}] Adding PDF: {os.path.basename(file_path)} (pages {start_page}-{end_page})")
+                    merger.append(file_path, pages=(start_page - 1, end_page))
+                else:
+                    print(f"  [{i}/{len(file_items)}] Adding PDF: {os.path.basename(file_path)} (all pages)")
+                    merger.append(file_path)
                 
         except Exception as e:
             print(f"Error adding {file_path}: {e}")
@@ -127,42 +136,114 @@ def main():
     print("PDF Merger Tool")
     print("=" * 60)
     
-    # Get comma-separated file paths from user
-    user_input = input("\nEnter file paths (PDF/PNG/JPG, comma-separated): ").strip()
-    
-    if not user_input:
-        print("Error: No file paths provided.")
-        sys.exit(1)
-    
-    # Split and clean file paths
-    file_paths = [path.strip().strip('"').strip("'") for path in user_input.split(',')]
+    # Ask if user wants to define page ranges
+    define_pages = input("\nDo you want to specify page ranges for PDFs? (y/n): ").strip().lower()
+    use_page_ranges = define_pages == 'y'
     
     # Supported file extensions
     supported_extensions = ('.pdf', '.png', '.jpg', '.jpeg')
     
-    # Validate file paths
-    valid_paths = []
-    for path in file_paths:
-        if not path:
+    # Collect files one by one
+    file_items = []
+    file_count = 0
+    
+    print("\nEnter files one by one (press Enter without input to finish):")
+    if use_page_ranges:
+        print("For PDFs, you'll be asked for the page range.")
+        print("Images will automatically be added as single pages.")
+        print("Page range examples: 1, 1-5, 2-10")
+    
+    while True:
+        file_count += 1
+        
+        # Ask for file path
+        file_path = input(f"\nFile {file_count} path (or Enter to finish): ").strip().strip('"').strip("'")
+        
+        # If empty, user is done
+        if not file_path:
+            file_count -= 1  # Decrement since we didn't add a file
+            break
+        
+        # Validate file exists
+        if not os.path.exists(file_path):
+            print(f"Error: File not found: {file_path}")
+            print("Please try again.")
+            file_count -= 1
             continue
         
-        if not os.path.exists(path):
-            print(f"Error: File not found: {path}")
-            sys.exit(1)
-        
-        if not path.lower().endswith(supported_extensions):
-            print(f"Error: Unsupported file type: {path}")
+        # Validate file type
+        if not file_path.lower().endswith(supported_extensions):
+            print(f"Error: Unsupported file type: {file_path}")
             print(f"Supported formats: PDF, PNG, JPG, JPEG")
-            sys.exit(1)
+            print("Please try again.")
+            file_count -= 1
+            continue
         
-        valid_paths.append(path)
+        file_ext = os.path.splitext(file_path)[1].lower()
+        start_page = None
+        end_page = None
+        
+        # Ask for page range if in advanced mode
+        if use_page_ranges:
+            if file_ext == '.pdf':
+                while True:
+                    page_input = input(f"  Page range (e.g., 1-5 or 3, or Enter for all pages): ").strip()
+                    
+                    if not page_input:
+                        # User wants all pages
+                        break
+                    
+                    # Parse page range
+                    if '-' in page_input:
+                        try:
+                            parts = page_input.split('-')
+                            start_page = int(parts[0].strip())
+                            end_page = int(parts[1].strip())
+                            
+                            if start_page < 1 or end_page < 1:
+                                print("  Error: Page numbers must be >= 1")
+                                continue
+                            if start_page > end_page:
+                                print("  Error: Start page must be <= end page")
+                                continue
+                            
+                            break
+                        except ValueError:
+                            print("  Error: Invalid page range format. Use format like '1-5' or '3'")
+                            continue
+                    else:
+                        # Single page
+                        try:
+                            page_num = int(page_input.strip())
+                            if page_num < 1:
+                                print("  Error: Page number must be >= 1")
+                                continue
+                            start_page = page_num
+                            end_page = page_num
+                            break
+                        except ValueError:
+                            print("  Error: Invalid page number")
+                            continue
+            else:
+                # Image file - automatically use page 1 (no input needed)
+                print(f"  Image file - automatically using page 1")
+                start_page = 1
+                end_page = 1
+        
+        # Add to list
+        file_items.append((file_path, start_page, end_page))
+        print(f"✓ Added: {os.path.basename(file_path)}" + 
+              (f" (pages {start_page}-{end_page})" if start_page is not None else " (all pages)"))
     
-    if len(valid_paths) < 1:
-        print("Error: Please provide at least 1 file to convert/merge.")
+    if len(file_items) < 1:
+        print("\nError: No files were added. Exiting.")
         sys.exit(1)
     
+    print(f"\n{len(file_items)} file(s) ready to merge.")
+    
     # Get the directory of the first file
-    first_file_dir = os.path.dirname(os.path.abspath(valid_paths[0]))
+    first_file_path = file_items[0][0]
+    first_file_dir = os.path.dirname(os.path.abspath(first_file_path))
     output_path = os.path.join(first_file_dir, "merged.pdf")
     
     # Check if output file already exists
@@ -173,7 +254,7 @@ def main():
             sys.exit(0)
     
     # Merge the PDFs
-    merge_pdfs(valid_paths, output_path)
+    merge_pdfs(file_items, output_path)
     print(f"\nOutput file: {output_path}")
     print("=" * 60)
 
